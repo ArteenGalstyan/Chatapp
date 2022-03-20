@@ -1,3 +1,12 @@
+/*
+ * Comp 429 Project 1
+ * Peer to Peer chat application
+ * 
+ * Arteen Galstyan
+ * Daniel Ranchpar
+ * 
+ * March 18, 2021
+ */
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
@@ -135,39 +144,49 @@ public class Chat {
     }
 
     private void sendMessage(Peer peer, String message) {
-        try {
-            peerMap.get(peer).writeBytes(message + "\r\n");
-
-        } catch (Exception e) {
-            System.out.println(e);
-        }
+    	if(message.length() > 100) {
+    		System.out.println("Error: Message over 100 characters!");
+    	} else {
+	        try {
+	            peerMap.get(peer).writeBytes(message + "\r\n");
+	
+	        } catch (Exception e) {
+	            System.out.println(e);
+	        }
+    	}
     }
 
     private void connect(String ip, int port) throws IOException {
         Socket peerSocket = null;
-
-        // try to connect but will stop after MAX_ATTEMPTS
+        int attempts = 0;
+        final int MAX_ATTEMPTS = 3;
+        final int SLEEP_TIME = 1000;
         do {
             try {
                 peerSocket = new Socket(ip, port);
             } catch (IOException e) {
-                System.out.println("*** connection failed ***");
+            	attempts++;
+                System.out.println("*** connection failed! attempt: " + (attempts) +" ***");
+				try {
+					Thread.sleep(SLEEP_TIME);
+				} catch (InterruptedException e1) {
+					
+				}
             }
-        } while (peerSocket == null);
+        } while (peerSocket == null && attempts < MAX_ATTEMPTS);
 
-        System.out.println("connected to " + ip + " " + port);
-        Peer peer = new Peer(ip, port);
-        connectedPeers.add(peer);
-
-        // map this peer to an output stream
-        peerMap.put(peer, new DataOutputStream(peerSocket.getOutputStream()));
-
-        // tell the peer your host address and port number
-        // tell the peer to connect to you
-        sendMessage(peer, generateConnectJson());
+		if (attempts >= MAX_ATTEMPTS) {
+			System.out.println("Error: could not connect!");
+		} else {
+			System.out.println("connected to " + ip + " " + port);
+			Peer peer = new Peer(ip, port);
+			connectedPeers.add(peer);
+			peerMap.put(peer, new DataOutputStream(peerSocket.getOutputStream()));
+			sendMessage(peer, generateConnectJson());
+		}
     }
 
-    private void breakPeerConnections() throws IOException {
+    private void terminateAllConnections() throws IOException {
 
         // terminate each peer connection; notify them
         for (Peer peer : connectedPeers) {
@@ -214,7 +233,6 @@ public class Chat {
         int port = Integer.valueOf(JSONHelper.parse(jsonStr, "port"));
         System.out.println("\nPeer [ip: " + ip + ", port: " + port + "] connects to you");
         System.out.print("-> ");
-        // save peer's info, used for a lot of other stuff
         Peer peer = new Peer(ip, port);
         connectedPeers.add(peer);
         peerMap.put(peer, new DataOutputStream(peer.getSocket().getOutputStream()));
@@ -238,10 +256,14 @@ public class Chat {
         String[] args = userInput.split(" ");
         String ip;
         int port;
-
-        ip = args[1];
-        port = Integer.valueOf(args[2]);
-        connect(ip, port);
+        if(args.length == 3) {
+        	ip = args[1];
+            port = Integer.valueOf(args[2]);
+            connect(ip, port);
+        } else {
+        	System.out.println("Error: Invalid format for 'connect' command. See 'help' for details.");
+        }
+        
     }
 
     private void processSend(String userInput) {
@@ -254,6 +276,7 @@ public class Chat {
                     for (int i = 2; i < args.length; i++)
                         msg += args[i] + " ";
                     sendMessage(connectedPeers.get(id), generateMessageJson(msg));
+                    System.out.println("Message sent to " + (id + 1));
                 } else {
                     System.out.println("Error: Please select a valid peer id from the list command.");
                 }
@@ -271,7 +294,6 @@ public class Chat {
             try {
                 int id = Integer.valueOf(args[1]) - 1;
                 if (isValidPeer(id)) {
-                    // notify peer that connection will be drop
                     Peer peer = connectedPeers.get(id);
                     sendMessage(peer, generateTerminateJson());
                     System.out.println("You dropped peer [ip: " + peer.getHost() + " port: " + peer.getPort() + "]");
@@ -368,7 +390,7 @@ public class Chat {
                         processTerminate(choice);
                     break;
                 case "exit":
-                    breakPeerConnections();
+                    terminateAllConnections();
                     System.exit(0);
                     break;
                 default:

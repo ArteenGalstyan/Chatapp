@@ -1,3 +1,12 @@
+/*
+ * Comp 429 Project 1
+ * Peer to Peer chat application
+ * 
+ * Arteen Galstyan
+ * Daniel Ranchpar
+ * 
+ * March 18, 2021
+ */
 
 import java.io.IOException;
 import java.net.Socket;
